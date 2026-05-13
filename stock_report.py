@@ -1,8 +1,4 @@
-# =========================================================
-# 설치 필요 패키지
-# pip install yfinance requests feedparser beautifulsoup4
-# =========================================================
-
+```python
 import yfinance as yf
 import requests
 import os
@@ -11,18 +7,9 @@ from datetime import datetime, timedelta
 
 # =========================================================
 # 텔레그램 설정
-# GitHub Secrets 등록 필요
-# TELEGRAM_TOKEN
-# CHAT_ID
 # =========================================================
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
-
-# =========================================================
-# 실행 시간 설정 (한국시간 기준)
-# =========================================================
-MORNING_SEND_HOUR = 8    # 오전 8시
-EVENING_SEND_HOUR = 18   # 오후 6시
 
 # =========================================================
 # 포트폴리오
@@ -35,17 +22,11 @@ MY_PORTFOLIO = {
     '360750.KS': [27504, 21, 'TIGER 미국S&P500']
 }
 
-# =========================================================
-# 미국 대형주
-# =========================================================
 US_LARGE_CAPS = [
     'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
     'META', 'TSLA', 'BRK-B', 'JPM', 'V'
 ]
 
-# =========================================================
-# 국내 대형주
-# =========================================================
 KR_LARGE_CAPS = [
     ('005930.KS', '삼성전자'),
     ('000660.KS', 'SK하이닉스'),
@@ -60,7 +41,7 @@ KR_LARGE_CAPS = [
 ]
 
 # =========================================================
-# 안전 조회
+# 공통 함수
 # =========================================================
 def safe_history(ticker, period='2d'):
 
@@ -80,27 +61,19 @@ def safe_history(ticker, period='2d'):
         return None
 
 
-# =========================================================
-# 환율 조회
-# =========================================================
 def get_usdkrw():
 
     try:
 
         data = yf.Ticker("KRW=X").history(period='1d')
 
-        if data.empty:
-            return 1350
-
         return data['Close'].iloc[-1]
 
     except:
+
         return 1350
 
 
-# =========================================================
-# HTML 특수문자 처리
-# =========================================================
 def escape_html(text):
 
     text = text.replace("&", "&amp;")
@@ -111,7 +84,38 @@ def escape_html(text):
 
 
 # =========================================================
-# 뉴스 섹션 생성
+# 텔레그램
+# =========================================================
+def send_telegram(text):
+
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+
+        print("텔레그램 설정 오류")
+
+        return
+
+    try:
+
+        response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={
+                'chat_id': CHAT_ID,
+                'text': text,
+                'parse_mode': 'HTML',
+                'disable_web_page_preview': True
+            },
+            timeout=20
+        )
+
+        print(response.status_code)
+
+    except Exception as e:
+
+        print(f"텔레그램 오류: {e}")
+
+
+# =========================================================
+# 뉴스
 # =========================================================
 def build_news_section(title, feeds, max_items=5):
 
@@ -165,7 +169,7 @@ def build_news_section(title, feeds, max_items=5):
 def get_macro_indicators():
 
     indicators = {
-        'VIX 공포지수': '^VIX',
+        'VIX': '^VIX',
         '미국채10년물': '^TNX',
         '달러인덱스': 'DX-Y.NYB'
     }
@@ -195,7 +199,7 @@ def get_macro_indicators():
 
 
 # =========================================================
-# 미국 상승/하락
+# 미국 대형주
 # =========================================================
 def get_top_movers_us():
 
@@ -219,31 +223,23 @@ def get_top_movers_us():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [미국 대형주 상승 TOP5]\n\n"
+    result = "📈 미국 상승 TOP5\n\n"
 
     for t, p, c in top5:
 
-        result += (
-            f"▲ {t}: "
-            f"{p:+.2f}% "
-            f"(${c:,.2f})\n"
-        )
+        result += f"▲ {t}: {p:+.2f}% (${c:,.2f})\n"
 
-    result += "\n📉 [미국 대형주 하락 TOP5]\n\n"
+    result += "\n📉 미국 하락 TOP5\n\n"
 
     for t, p, c in bottom5:
 
-        result += (
-            f"▼ {t}: "
-            f"{p:+.2f}% "
-            f"(${c:,.2f})\n"
-        )
+        result += f"▼ {t}: {p:+.2f}% (${c:,.2f})\n"
 
     return result
 
 
 # =========================================================
-# 국내 상승/하락
+# 국내 대형주
 # =========================================================
 def get_top_movers_kr():
 
@@ -267,25 +263,17 @@ def get_top_movers_kr():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [국내 대형주 상승 TOP5]\n\n"
+    result = "📈 국내 상승 TOP5\n\n"
 
     for n, p, c in top5:
 
-        result += (
-            f"▲ {n}: "
-            f"{p:+.2f}% "
-            f"({c:,.0f}원)\n"
-        )
+        result += f"▲ {n}: {p:+.2f}% ({c:,.0f}원)\n"
 
-    result += "\n📉 [국내 대형주 하락 TOP5]\n\n"
+    result += "\n📉 국내 하락 TOP5\n\n"
 
     for n, p, c in bottom5:
 
-        result += (
-            f"▼ {n}: "
-            f"{p:+.2f}% "
-            f"({c:,.0f}원)\n"
-        )
+        result += f"▼ {n}: {p:+.2f}% ({c:,.0f}원)\n"
 
     return result
 
@@ -300,12 +288,9 @@ def get_portfolio_summary():
     total_buy = 0
     total_eval = 0
 
-    result = "💼 [포트폴리오 현황]\n\n"
+    result = "💼 포트폴리오 현황\n\n"
 
-    result += (
-        f"💱 환율: "
-        f"1달러 = {usdkrw:,.0f}원\n\n"
-    )
+    result += f"💱 환율: 1달러 = {usdkrw:,.0f}원\n\n"
 
     for ticker, info in MY_PORTFOLIO.items():
 
@@ -322,15 +307,15 @@ def get_portfolio_summary():
 
         if is_us:
 
-            buy_price_krw = buy_price * usdkrw
-            curr_price_krw = curr * usdkrw
+            buy_krw = buy_price * usdkrw
+            curr_krw = curr * usdkrw
 
-            total_buy_price = buy_price_krw * qty
-            total_eval_price = curr_price_krw * qty
+            total_buy_price = buy_krw * qty
+            total_eval_price = curr_krw * qty
 
-            current_price_text = (
+            current_text = (
                 f"${curr:,.2f} "
-                f"({curr_price_krw:,.0f}원)"
+                f"({curr_krw:,.0f}원)"
             )
 
         else:
@@ -338,13 +323,9 @@ def get_portfolio_summary():
             total_buy_price = buy_price * qty
             total_eval_price = curr * qty
 
-            current_price_text = (
-                f"{curr:,.0f}원"
-            )
+            current_text = f"{curr:,.0f}원"
 
-        profit = (
-            total_eval_price - total_buy_price
-        )
+        profit = total_eval_price - total_buy_price
 
         rate = (
             (profit / total_buy_price) * 100
@@ -356,7 +337,7 @@ def get_portfolio_summary():
         result += (
             f"━━━━━━━━━━━━━━\n"
             f"{name}\n"
-            f"현재가: {current_price_text}\n"
+            f"현재가: {current_text}\n"
             f"수익률: {rate:+.2f}%\n"
             f"총매수금액: {total_buy_price:,.0f}원\n"
             f"현재평가금액: {total_eval_price:,.0f}원\n"
@@ -374,41 +355,10 @@ def get_portfolio_summary():
         f"총매수금액: {total_buy:,.0f}원\n"
         f"총평가금액: {total_eval:,.0f}원\n"
         f"총평가손익: {total_profit:+,.0f}원\n"
-        f"총수익률: {total_rate:+.2f}%\n"
+        f"총수익률: {total_rate:+.2f}%"
     )
 
     return result
-
-
-# =========================================================
-# 텔레그램 전송
-# =========================================================
-def send_telegram(text):
-
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-
-        print("텔레그램 TOKEN 또는 CHAT_ID 없음")
-
-        return
-
-    try:
-
-        response = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                'chat_id': CHAT_ID,
-                'text': text,
-                'parse_mode': 'HTML',
-                'disable_web_page_preview': True
-            },
-            timeout=20
-        )
-
-        print(f"전송 완료: {response.status_code}")
-
-    except Exception as e:
-
-        print(f"텔레그램 전송 실패: {e}")
 
 
 # =========================================================
@@ -419,30 +369,22 @@ if __name__ == "__main__":
     now_kst = datetime.utcnow() + timedelta(hours=9)
 
     current_hour = now_kst.hour
-    current_minute = now_kst.minute
 
     print(f"현재 한국시간: {now_kst}")
 
     # =====================================================
     # 오전 8시
-    # 해외증시 브리핑 + 국내 일정
     # =====================================================
-    if (
-        current_hour == MORNING_SEND_HOUR
-        and current_minute < 10
-    ):
+    if current_hour == 8:
 
         send_telegram(
             f"🌙 해외증시 브리핑\n"
             f"📅 {now_kst.strftime('%Y-%m-%d %H:%M')} KST"
         )
 
-        market_report = "📊 시장 요약\n\n"
+        send_telegram(get_macro_indicators())
 
-        market_report += get_macro_indicators()
-        market_report += get_top_movers_us()
-
-        send_telegram(market_report)
+        send_telegram(get_top_movers_us())
 
         us_news = build_news_section(
             "📰 미국 주요 뉴스",
@@ -461,7 +403,6 @@ if __name__ == "__main__":
             "🇰🇷 국내 주요 일정",
             [
                 'https://news.google.com/rss/search?q=한국은행+금통위&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=한국+수출입동향&hl=ko&gl=KR&ceid=KR:ko',
                 'https://news.google.com/rss/search?q=코스피+일정&hl=ko&gl=KR&ceid=KR:ko'
             ]
         )
@@ -470,24 +411,17 @@ if __name__ == "__main__":
 
     # =====================================================
     # 오후 6시
-    # 국내증시 브리핑 + 해외 일정
     # =====================================================
-    elif (
-        current_hour == EVENING_SEND_HOUR
-        and current_minute < 10
-    ):
+    elif current_hour == 18:
 
         send_telegram(
             f"🌞 국내증시 브리핑\n"
             f"📅 {now_kst.strftime('%Y-%m-%d %H:%M')} KST"
         )
 
-        market_report = "📊 시장 요약\n\n"
+        send_telegram(get_macro_indicators())
 
-        market_report += get_macro_indicators()
-        market_report += get_top_movers_kr()
-
-        send_telegram(market_report)
+        send_telegram(get_top_movers_kr())
 
         kr_news = build_news_section(
             "📰 국내 주요 뉴스",
@@ -507,8 +441,7 @@ if __name__ == "__main__":
             [
                 'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
                 'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=엔비디아실적발표&hl=ko&gl=KR&ceid=KR:ko'
+                'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko'
             ]
         )
 
@@ -516,4 +449,5 @@ if __name__ == "__main__":
 
     else:
 
-        print("현재는 발송 시간이 아닙니다.")
+        print("발송 시간이 아닙니다.")
+```
