@@ -1,0 +1,24 @@
+name: Daily Stock Report
+
+on:
+  schedule:
+    - cron: '0 23 * * *' # 한국 시간 오전 8시 (UTC 23:00)
+    - cron: '9 9 * * *'  # 한국 시간 오후 6시 9분 (UTC 09:09)
+  workflow_dispatch: # 수동으로 실행해보고 싶을 때 쓰는 버튼 생성
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install yfinance requests
+      - name: Run script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python stock_report.py
