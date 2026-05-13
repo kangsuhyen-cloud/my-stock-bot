@@ -105,11 +105,11 @@ def escape_html(text):
 
 
 # =========================================================
-# 뉴스 링크형 출력
+# 뉴스 섹션 생성
 # =========================================================
 def build_news_section(title, feeds, max_items=5):
 
-    result = f"{title}\n"
+    result = f"{title}\n\n"
 
     news_items = []
 
@@ -150,8 +150,6 @@ def build_news_section(title, feeds, max_items=5):
         if count >= max_items:
             break
 
-    result += "\n"
-
     return result
 
 
@@ -166,7 +164,7 @@ def get_macro_indicators():
         '달러인덱스': 'DX-Y.NYB'
     }
 
-    result = "🌐 [거시지표]\n"
+    result = "🌐 [거시지표]\n\n"
 
     for name, ticker in indicators.items():
 
@@ -187,13 +185,11 @@ def get_macro_indicators():
                 f"({change:+.2f}%)\n"
             )
 
-    result += "\n"
-
     return result
 
 
 # =========================================================
-# 미국 상승하락
+# 미국 상승/하락
 # =========================================================
 def get_top_movers_us():
 
@@ -217,7 +213,7 @@ def get_top_movers_us():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [미국 대형주 상승 TOP5]\n"
+    result = "📈 [미국 대형주 상승 TOP5]\n\n"
 
     for t, p, c in top5:
 
@@ -227,7 +223,7 @@ def get_top_movers_us():
             f"(${c:,.2f})\n"
         )
 
-    result += "\n📉 [미국 대형주 하락 TOP5]\n"
+    result += "\n📉 [미국 대형주 하락 TOP5]\n\n"
 
     for t, p, c in bottom5:
 
@@ -237,13 +233,11 @@ def get_top_movers_us():
             f"(${c:,.2f})\n"
         )
 
-    result += "\n"
-
     return result
 
 
 # =========================================================
-# 국내 상승하락
+# 국내 상승/하락
 # =========================================================
 def get_top_movers_kr():
 
@@ -267,7 +261,7 @@ def get_top_movers_kr():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [국내 대형주 상승 TOP5]\n"
+    result = "📈 [국내 대형주 상승 TOP5]\n\n"
 
     for n, p, c in top5:
 
@@ -277,7 +271,7 @@ def get_top_movers_kr():
             f"({c:,.0f}원)\n"
         )
 
-    result += "\n📉 [국내 대형주 하락 TOP5]\n"
+    result += "\n📉 [국내 대형주 하락 TOP5]\n\n"
 
     for n, p, c in bottom5:
 
@@ -286,8 +280,6 @@ def get_top_movers_kr():
             f"{p:+.2f}% "
             f"({c:,.0f}원)\n"
         )
-
-    result += "\n"
 
     return result
 
@@ -302,7 +294,7 @@ def get_portfolio_summary():
     total_buy = 0
     total_eval = 0
 
-    result = "💼 [포트폴리오 현황]\n"
+    result = "💼 [포트폴리오 현황]\n\n"
 
     result += (
         f"💱 환율: "
@@ -383,152 +375,6 @@ def get_portfolio_summary():
 
 
 # =========================================================
-# 메인 리포트
-# =========================================================
-def get_market_report():
-
-    now_kst = (
-        datetime.utcnow() + timedelta(hours=9)
-    )
-
-    hour = now_kst.hour
-
-    is_morning = 7 <= hour < 11
-
-    title = (
-        "🌙 해외증시 브리핑"
-        if is_morning
-        else "🌞 국내증시 브리핑"
-    )
-
-    result = (
-        f"{'═'*35}\n"
-        f"{title}\n"
-        f"📅 {now_kst.strftime('%Y-%m-%d %H:%M')} KST\n"
-        f"{'═'*35}\n\n"
-    )
-
-    # 주요지수
-    result += "📊 [주요 지수]\n"
-
-    if is_morning:
-
-        symbols = {
-            '나스닥': '^IXIC',
-            'S&P500': '^GSPC',
-            '다우': '^DJI'
-        }
-
-    else:
-
-        symbols = {
-            '코스피': '^KS11',
-            '코스닥': '^KQ11'
-        }
-
-    for name, ticker in symbols.items():
-
-        data = safe_history(ticker)
-
-        if data is not None and len(data) >= 2:
-
-            prev = data['Close'].iloc[-2]
-            curr = data['Close'].iloc[-1]
-
-            change = (
-                ((curr - prev) / prev) * 100
-            )
-
-            emoji = "🔺" if change > 0 else "🔻"
-
-            result += (
-                f"{emoji} {name}: "
-                f"{curr:,.2f} "
-                f"({change:+.2f}%)\n"
-            )
-
-    result += "\n"
-
-    # 거시지표
-    result += get_macro_indicators()
-
-    # 상승하락
-    if is_morning:
-        result += get_top_movers_us()
-    else:
-        result += get_top_movers_kr()
-
-    # 주요뉴스
-    if is_morning:
-
-        result += build_news_section(
-            "📰 [미국 주요 뉴스]",
-            [
-                'https://news.google.com/rss/search?q=미국증시&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=엔비디아&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=연준금리&hl=ko&gl=KR&ceid=KR:ko'
-            ]
-        )
-
-    else:
-
-        result += build_news_section(
-            "📰 [국내 주요 뉴스]",
-            [
-                'https://news.google.com/rss/search?q=코스피&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko',
-                'https://news.google.com/rss/search?q=2차전지&hl=ko&gl=KR&ceid=KR:ko'
-            ]
-        )
-
-    # 글로벌 특수 이벤트
-    result += build_news_section(
-        "🌎 [글로벌 특수 이벤트]",
-        [
-            'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=트럼프중국방문&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=엔비디아실적발표&hl=ko&gl=KR&ceid=KR:ko'
-        ]
-    )
-
-    # 포트폴리오
-    result += get_portfolio_summary()
-
-    return result
-
-
-# =========================================================
-# 국내 일정
-# =========================================================
-def get_kr_schedule():
-
-    return build_news_section(
-        "🇰🇷 [국내 주요 일정]",
-        [
-            'https://news.google.com/rss/search?q=한국은행+금통위&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=한국+수출입동향&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=코스피+일정&hl=ko&gl=KR&ceid=KR:ko'
-        ]
-    )
-
-
-# =========================================================
-# 해외 일정
-# =========================================================
-def get_global_schedule():
-
-    return build_news_section(
-        "🌎 [해외 주요 일정]",
-        [
-            'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko'
-        ]
-    )
-
-
-# =========================================================
 # 텔레그램 전송
 # =========================================================
 def send_telegram(text):
@@ -539,33 +385,24 @@ def send_telegram(text):
 
         return
 
-    max_len = 3500
+    try:
 
-    messages = [
-        text[i:i+max_len]
-        for i in range(0, len(text), max_len)
-    ]
+        response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={
+                'chat_id': CHAT_ID,
+                'text': text,
+                'parse_mode': 'HTML',
+                'disable_web_page_preview': True
+            },
+            timeout=20
+        )
 
-    for msg in messages:
+        print(response.status_code)
 
-        try:
+    except Exception as e:
 
-            response = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-                json={
-                    'chat_id': CHAT_ID,
-                    'text': msg,
-                    'parse_mode': 'HTML',
-                    'disable_web_page_preview': True
-                },
-                timeout=20
-            )
-
-            print(response.status_code)
-
-        except Exception as e:
-
-            print(f"텔레그램 전송 실패: {e}")
+        print(f"텔레그램 전송 실패: {e}")
 
 
 # =========================================================
@@ -582,27 +419,123 @@ if __name__ == "__main__":
     print("프로그램 시작")
     print(f"현재 시간: {hour}시")
 
-    # 오전 8시
-    if 7 <= hour < 11:
+    is_morning = 7 <= hour < 11
+    is_evening = 17 <= hour < 23
 
-        report = get_market_report()
+    if is_morning or is_evening:
 
-        send_telegram(report)
+        # =================================================
+        # 헤더
+        # =================================================
+        now_text = now_kst.strftime('%Y-%m-%d %H:%M')
 
-        send_telegram(
-            get_kr_schedule()
+        if is_morning:
+
+            header = (
+                f"🌙 해외증시 브리핑\n"
+                f"📅 {now_text} KST"
+            )
+
+        else:
+
+            header = (
+                f"🌞 국내증시 브리핑\n"
+                f"📅 {now_text} KST"
+            )
+
+        send_telegram(header)
+
+        # =================================================
+        # 시장 요약
+        # =================================================
+        market_report = "📊 시장 요약\n\n"
+
+        market_report += get_macro_indicators()
+
+        if is_morning:
+            market_report += get_top_movers_us()
+        else:
+            market_report += get_top_movers_kr()
+
+        send_telegram(market_report)
+
+        # =================================================
+        # 주요 뉴스
+        # =================================================
+        if is_morning:
+
+            news_report = build_news_section(
+                "📰 미국 주요 뉴스",
+                [
+                    'https://news.google.com/rss/search?q=미국증시&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=엔비디아&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=연준금리&hl=ko&gl=KR&ceid=KR:ko'
+                ]
+            )
+
+        else:
+
+            news_report = build_news_section(
+                "📰 국내 주요 뉴스",
+                [
+                    'https://news.google.com/rss/search?q=코스피&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=2차전지&hl=ko&gl=KR&ceid=KR:ko'
+                ]
+            )
+
+        send_telegram(news_report)
+
+        # =================================================
+        # 글로벌 이벤트
+        # =================================================
+        event_report = build_news_section(
+            "🌎 글로벌 특수 이벤트",
+            [
+                'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=트럼프중국방문&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=엔비디아실적발표&hl=ko&gl=KR&ceid=KR:ko'
+            ]
         )
 
-    # 오후 6시
-    elif 17 <= hour < 23:
+        send_telegram(event_report)
 
-        report = get_market_report()
+        # =================================================
+        # 포트폴리오
+        # =================================================
+        portfolio_report = get_portfolio_summary()
 
-        send_telegram(report)
+        send_telegram(portfolio_report)
 
-        send_telegram(
-            get_global_schedule()
-        )
+        # =================================================
+        # 일정
+        # =================================================
+        if is_morning:
+
+            kr_schedule = build_news_section(
+                "🇰🇷 국내 주요 일정",
+                [
+                    'https://news.google.com/rss/search?q=한국은행+금통위&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=한국+수출입동향&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=코스피+일정&hl=ko&gl=KR&ceid=KR:ko'
+                ]
+            )
+
+            send_telegram(kr_schedule)
+
+        else:
+
+            global_schedule = build_news_section(
+                "🌎 해외 주요 일정",
+                [
+                    'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
+                    'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko'
+                ]
+            )
+
+            send_telegram(global_schedule)
 
     else:
 
