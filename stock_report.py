@@ -3,10 +3,11 @@ import requests
 import os
 from datetime import datetime, timedelta
 
-# 1. 보안 설정
+# [보안 설정]
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
+# [포트폴리오 정보]
 MY_PORTFOLIO = {
     '402380.KS': [25005, 1, 'KODEX 미국S&P500'],
     '381170.KS': [30270, 13, 'TIGER 미국테크TOP10'],
@@ -15,108 +16,89 @@ MY_PORTFOLIO = {
     '360750.KS': [27504, 21, 'TIGER 미국S&P500']
 }
 
-def get_realtime_news(query):
-    """뉴스 데이터 가져오기 (실패 시 빈 문자열 반환하여 전송 보장)"""
+def get_realtime_news(query, count=2):
     try:
         url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
         r = requests.get(url, timeout=5)
-        items = r.text.split('<item>')[1:4]
-        res = []
-        for i in items:
-            t = i.split('<title>')[1].split('</title>')[0]
-            l = i.split('<link>')[1].split('</link>')[0]
-            res.append(f"• {t}\n  🔗 {l}")
-        return "\n".join(res)
-    except: return "• 현재 뉴스를 불러올 수 없습니다."
+        items = r.text.split('<item>')[1:count+1]
+        return "\n".join([f"• {i.split('<title>')[1].split('</title>')[0]}\n  🔗 {i.split('<link>')[1].split('</link>')[0]}" for i in items])
+    except: return "• 일정 데이터를 불러오는 중입니다."
 
-def get_market_report():
+def get_detailed_analysis(ticker, name):
+    """차트 및 수급 심층 분석 로직"""
+    try:
+        df = yf.Ticker(ticker).history(period='30d')
+        if len(df) < 20: return f"[{name}] 분석 데이터 부족"
+        curr = df['Close'].iloc[-1]
+        ma20 = df['Close'].rolling(window=20).mean().iloc[-1]
+        
+        # RSI 계산
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rsi = 100 - (100 / (1 + (gain/loss))).iloc[-1]
+
+        status = "상승 추세 유지" if curr > ma20 else "지지선 확인 필요"
+        strength = "과열 주의" if rsi > 70 else ("과매도 반등 기대" if rsi < 30 else "안정적 흐름")
+        
+        return f"🔍 {name} 진단:\n  - 추세: {status} (20일선: {ma20:,.0f})\n  - 강도: RSI {rsi:.1f} ({strength})"
+    except: return f"[{name}] 분석 일시 중단"
+
+def get_market_reports():
     now_kst = datetime.utcnow() + timedelta(hours=9)
     hour = now_kst.hour
-    main_msg = ""
-    event_msg = None
+    
+    is_morning = 7 <= hour < 11
+    market_name = "해외 증시" if is_morning else "국내 증시"
+    
+    # 1. 메인 리포트 생성
+    report = f"📊 [{market_name} 심층 리포트]\n📅 {now_kst.strftime('%m/%d %H:%M')}\n\n"
+    
+    # 지수현황
+    symbols = {'나스닥': '^IXIC', 'S&P500': '^GSPC'} if is_morning else {'코스피': '^KS11', '코스닥': '^KQ11'}
+    for n, t in symbols.items():
+        try:
+            d = yf.Ticker(t).history(period='2d')
+            c = ((d['Close'].iloc[-1] - d['Close'].iloc[-2]) / d['Close'].iloc[-2]) * 100
+            report += f"{n} {c:+.2f}%  "
+        except: report += f"{n} [휴장]  "
+    
+    # 포트폴리오
+    report += "\n\n💰 [자산 현황]\n"
+    for tk, info in MY_PORTFOLIO.items():
+        try:
+            d = yf.Ticker(tk).history(period='2d')
+            curr = d['Close'].iloc[-1]
+            buy, amt, name = info
+            rate = ((curr-buy)/buy)*100
+            report += f"• {name}: {rate:+.2f}%\n"
+        except: continue
 
-    # [오전 리포트 - 해외 증시 전용]
-    if 7 <= hour < 11:
-        main_msg = f"🌎 [Morning] 해외 증시 마감 리포트 ({now_kst.strftime('%m/%d %H:%M')})\n\n📈 [미국 주요 지수]\n"
-        for n, t in {'나스닥': '^IXIC', 'S&P500': '^GSPC'}.items():
-            try:
-                d = yf.Ticker(t).history(period='5d')
-                c = ((d['Close'].iloc[-1] - d['Close'].iloc[-2]) / d['Close'].iloc[-2]) * 100
-                main_msg += f"{n} {c:+.2f}%  "
-            except: main_msg += f"{n} [휴장]  "
-        
-        main_msg += "\n\n📊 [미국 대형주 상승 TOP 5]\n"
-        us_stocks = {'엔비디아':'NVDA', '테슬라':'TSLA', '애플':'AAPL', '메타':'META', '아마존':'AMZN'}
-        perf = []
-        for n, t in us_stocks.items():
-            try:
-                s = yf.Ticker(t).history(period='2d')
-                ch = ((s['Close'].iloc[-1] - s['Close'].iloc[-2]) / s['Close'].iloc[-2]) * 100
-                perf.append((n, ch))
-            except: continue
-        for n, c in sorted(perf, key=lambda x: x[1], reverse=True)[:5]:
-            main_msg += f"• {n}: {c:+.2f}%\n"
+    # 심층 분석
+    report += "\n🧠 [차트/수급 분석]\n"
+    target = ('SMCI', '슈퍼마이크로컴퓨터') if is_morning else ('381170.KS', 'TIGER 미국테크TOP10')
+    report += get_detailed_analysis(target[0], target[1])
+    report += f"\n\n💡 한줄평: {'기술주 중심의 강한 홀딩 전략이 유효합니다.' if is_morning else '국내 증시 하방 경직성을 확보 중인 구간입니다.'}"
 
-        main_msg += f"\n📰 [해외 경제 뉴스]\n{get_realtime_news('미국 증시 시황')}\n"
-        
-        main_msg += "\n💰 [나의 포트폴리오 현황]\n"
-        for tk, info in MY_PORTFOLIO.items():
-            try:
-                d = yf.Ticker(tk).history(period='2d')
-                curr = d['Close'].iloc[-1]
-                buy, amt, name = info
-                main_msg += f"• {name}: {((curr-buy)/buy)*100:+.2f}% ({(curr-buy)*amt:,.1f})\n"
-            except: main_msg += f"• {info[2]}: [데이터 없음]\n"
-        
-        main_msg += "\n🧠 [분석 의견]\n- SMCI: 20일선 부근 변동성 확대 주의\n- 시황: 빅테크 중심 수급 강세가 유지되고 있습니다."
-        event_msg = f"🗓 [Major Events] 주요 일정\n\n{get_realtime_news('CPI FOMC 금리 트럼프')}"
+    # 2. 별도 일정 메시지 생성
+    event_query = "미국 소비자물가지수 FOMC 금리 실적발표" if is_morning else "한국 금통위 수출지표 반도체 일정"
+    event_msg = f"🗓 [Major Events] 향후 주목해야 할 일정\n\n{get_realtime_news(event_query, count=3)}"
 
-    # [오후 리포트 - 국내 증시 전용]
-    elif 17 <= hour < 22:
-        main_msg = f"🇰🇷 [Evening] 국내 증시 마감 리포트 ({now_kst.strftime('%m/%d %H:%M')})\n\n📉 [국내 주요 지수]\n"
-        for n, t in {'코스피': '^KS11', '코스닥': '^KQ11'}.items():
-            try:
-                d = yf.Ticker(t).history(period='5d')
-                c = ((d['Close'].iloc[-1] - d['Close'].iloc[-2]) / d['Close'].iloc[-2]) * 100
-                main_msg += f"{n} {c:+.2f}%  "
-            except: main_msg += f"{n} [휴장]  "
-            
-        main_msg += "\n\n🏆 [국내 대형주 상승 TOP 5]\n"
-        kr_stocks = {'삼성전자':'005930.KS', 'SK하이닉스':'000660.KS', '현대차':'005380.KS', '기아':'000270.KS', '셀트리온':'068270.KS'}
-        perf = []
-        for n, t in kr_stocks.items():
-            try:
-                s = yf.Ticker(t).history(period='2d')
-                ch = ((s['Close'].iloc[-1] - s['Close'].iloc[-2]) / s['Close'].iloc[-2]) * 100
-                perf.append((n, ch))
-            except: continue
-        for n, c in sorted(perf, key=lambda x: x[1], reverse=True)[:5]:
-            main_msg += f"• {n}: {c:+.2f}%\n"
-
-        main_msg += f"\n📰 [국내 경제 뉴스]\n{get_realtime_news('국내 증시 특징주')}\n"
-
-        main_msg += "\n💰 [나의 포트폴리오 현황]\n"
-        for tk, info in MY_PORTFOLIO.items():
-            try:
-                d = yf.Ticker(tk).history(period='2d')
-                curr = d['Close'].iloc[-1]
-                buy, amt, name = info
-                main_msg += f"• {name}: {((curr-buy)/buy)*100:+.2f}% ({(curr-buy)*amt:,.1f}원)\n"
-            except: main_msg += f"• {info[2]}: [데이터 없음]\n"
-            
-        main_msg += "\n🎯 [분석 의견]\n- TIGER 미국테크: 원/달러 환율 및 나스닥 선물 흐름과 동조화 중\n- 시황: 대형주 위주 외인 수급 체크가 필요합니다."
-
-    return main_msg, event_msg
+    return report, event_msg
 
 def send_telegram(text):
     if not text or len(text) < 10: return
     try:
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
-                      json={'chat_id': CHAT_ID, 'text': text}, timeout=10)
-    except Exception as e:
-        print(f"전송 에러: {e}")
+                      json={'chat_id': CHAT_ID, 'text': text}, timeout=15)
+    except: pass
 
 if __name__ == "__main__":
-    m_msg, e_msg = get_market_report()
-    if m_msg: send_telegram(m_msg)
-    if e_msg: send_telegram(e_msg)
+    now_kst = datetime.utcnow() + timedelta(hours=9)
+    hour = now_kst.hour
+    
+    # 아침 또는 저녁 시간대에만 작동
+    if (7 <= hour < 11) or (17 <= hour < 22):
+        main_report, event_report = get_market_reports()
+        send_telegram(main_report) # 첫 번째 메시지: 분석 리포트
+        send_telegram(event_report) # 두 번째 메시지: 일정 정보
