@@ -7,7 +7,6 @@ import yfinance as yf
 import requests
 import os
 import feedparser
-from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 # =========================================================
@@ -65,7 +64,10 @@ def safe_history(ticker, period='2d'):
 
         return data
 
-    except:
+    except Exception as e:
+
+        print(f"{ticker} 조회 실패: {e}")
+
         return None
 
 
@@ -88,13 +90,13 @@ def get_usdkrw():
 
 
 # =========================================================
-# 미국채 금리 / 달러 / VIX
+# 거시지표
 # =========================================================
 def get_macro_indicators():
 
     indicators = {
-        'VIX': '^VIX',
-        '미국채10년물': '^TNX',
+        'VIX 공포지수': '^VIX',
+        '미국채 10년물': '^TNX',
         '달러인덱스': 'DX-Y.NYB'
     }
 
@@ -111,8 +113,10 @@ def get_macro_indicators():
 
             change = ((curr - prev) / prev) * 100
 
+            emoji = "🔺" if change > 0 else "🔻"
+
             result += (
-                f"• {name}: "
+                f"{emoji} {name}: "
                 f"{curr:,.2f} "
                 f"({change:+.2f}%)\n"
             )
@@ -121,7 +125,7 @@ def get_macro_indicators():
 
 
 # =========================================================
-# 상승/하락 종목
+# 해외 상승/하락
 # =========================================================
 def get_top_movers_us():
 
@@ -145,15 +149,25 @@ def get_top_movers_us():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [미국 대형주 TOP]\n"
+    result = "📈 [미국 대형주 상승 TOP5]\n"
 
     for t, p, c in top5:
-        result += f"▲ {t}: {p:+.2f}% (${c:,.2f})\n"
 
-    result += "\n📉 [미국 대형주 하락]\n"
+        result += (
+            f"▲ {t}: "
+            f"{p:+.2f}% "
+            f"(${c:,.2f})\n"
+        )
+
+    result += "\n📉 [미국 대형주 하락 TOP5]\n"
 
     for t, p, c in bottom5:
-        result += f"▼ {t}: {p:+.2f}% (${c:,.2f})\n"
+
+        result += (
+            f"▼ {t}: "
+            f"{p:+.2f}% "
+            f"(${c:,.2f})\n"
+        )
 
     return result
 
@@ -183,38 +197,54 @@ def get_top_movers_kr():
     top5 = changes[:5]
     bottom5 = changes[-5:][::-1]
 
-    result = "📈 [국내 대형주 TOP]\n"
+    result = "📈 [국내 대형주 상승 TOP5]\n"
 
     for n, p, c in top5:
-        result += f"▲ {n}: {p:+.2f}% ({c:,.0f}원)\n"
 
-    result += "\n📉 [국내 대형주 하락]\n"
+        result += (
+            f"▲ {n}: "
+            f"{p:+.2f}% "
+            f"({c:,.0f}원)\n"
+        )
+
+    result += "\n📉 [국내 대형주 하락 TOP5]\n"
 
     for n, p, c in bottom5:
-        result += f"▼ {n}: {p:+.2f}% ({c:,.0f}원)\n"
+
+        result += (
+            f"▼ {n}: "
+            f"{p:+.2f}% "
+            f"({c:,.0f}원)\n"
+        )
 
     return result
 
 
 # =========================================================
-# 뉴스
+# 주요 뉴스
 # =========================================================
 def get_news(is_morning):
 
     if is_morning:
 
         feeds = [
-            'https://news.google.com/rss/search?q=미국증시',
-            'https://news.google.com/rss/search?q=엔비디아',
-            'https://news.google.com/rss/search?q=연준'
+
+            'https://news.google.com/rss/search?q=미국증시&hl=ko&gl=KR&ceid=KR:ko',
+
+            'https://news.google.com/rss/search?q=엔비디아&hl=ko&gl=KR&ceid=KR:ko',
+
+            'https://news.google.com/rss/search?q=연준+금리&hl=ko&gl=KR&ceid=KR:ko'
         ]
 
     else:
 
         feeds = [
-            'https://news.google.com/rss/search?q=코스피',
-            'https://news.google.com/rss/search?q=반도체',
-            'https://news.google.com/rss/search?q=2차전지'
+
+            'https://news.google.com/rss/search?q=코스피&hl=ko&gl=KR&ceid=KR:ko',
+
+            'https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko',
+
+            'https://news.google.com/rss/search?q=2차전지&hl=ko&gl=KR&ceid=KR:ko'
         ]
 
     result = "📰 [주요 뉴스]\n"
@@ -228,40 +258,51 @@ def get_news(is_morning):
             feed = feedparser.parse(url)
 
             for entry in feed.entries[:2]:
-                news_items.append(entry.title)
+
+                news_items.append(
+                    (entry.title, entry.link)
+                )
 
         except:
             continue
 
     seen = set()
 
-    for title in news_items:
+    for title, link in news_items:
 
         if title not in seen:
 
             seen.add(title)
 
-            result += f"• {title[:80]}\n"
+            result += (
+                f"• {title[:80]}\n"
+                f"🔗 {link}\n\n"
+            )
 
     return result
 
 
 # =========================================================
-# 특수 이벤트
+# 글로벌 특수 이벤트
 # =========================================================
 def get_special_events():
 
     feeds = [
-        'https://news.google.com/rss/search?q=트럼프+중국방문',
-        'https://news.google.com/rss/search?q=미중정상회담',
-        'https://news.google.com/rss/search?q=FOMC',
-        'https://news.google.com/rss/search?q=CPI',
-        'https://news.google.com/rss/search?q=연준'
+
+        'https://news.google.com/rss/search?q=미국+CPI+발표&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=FOMC+회의&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=트럼프+중국방문&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=엔비디아+실적발표&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=미중+정상회담&hl=ko&gl=KR&ceid=KR:ko'
     ]
 
     result = "🌎 [글로벌 특수 이벤트]\n"
 
-    collected = []
+    items = []
 
     for url in feeds:
 
@@ -270,57 +311,81 @@ def get_special_events():
             feed = feedparser.parse(url)
 
             for entry in feed.entries[:1]:
-                collected.append(entry.title)
+
+                items.append(
+                    (entry.title, entry.link)
+                )
 
         except:
             continue
 
     seen = set()
 
-    for title in collected:
+    for title, link in items:
 
         if title not in seen:
 
             seen.add(title)
 
-            result += f"• {title[:80]}\n"
+            result += (
+                f"• {title[:80]}\n"
+                f"🔗 {link}\n\n"
+            )
 
     return result
 
 
 # =========================================================
-# 실적 발표 일정
+# 실적 일정
 # =========================================================
 def get_earnings_schedule():
 
-    earnings = [
-        ("NVDA", "엔비디아"),
-        ("AAPL", "애플"),
-        ("TSLA", "테슬라"),
-        ("MSFT", "마이크로소프트")
+    feeds = [
+
+        'https://news.google.com/rss/search?q=엔비디아+실적발표&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=애플+실적발표&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=테슬라+실적발표&hl=ko&gl=KR&ceid=KR:ko'
     ]
 
     result = "📌 [주요 실적 일정]\n"
 
-    now = datetime.utcnow() + timedelta(hours=9)
+    items = []
 
-    for idx, (ticker, name) in enumerate(earnings):
+    for url in feeds:
 
-        date = (
-            now + timedelta(days=idx + 1)
-        ).strftime('%m/%d')
+        try:
 
-        result += (
-            f"• {date} "
-            f"{name}({ticker}) "
-            f"실적발표 예정\n"
-        )
+            feed = feedparser.parse(url)
+
+            for entry in feed.entries[:1]:
+
+                items.append(
+                    (entry.title, entry.link)
+                )
+
+        except:
+            continue
+
+    seen = set()
+
+    for title, link in items:
+
+        if title not in seen:
+
+            seen.add(title)
+
+            result += (
+                f"• {title[:80]}\n"
+                f"🔗 {link}\n\n"
+            )
 
     return result
 
 
 # =========================================================
-# AI 느낌 시장 요약
+# AI 코멘트
 # =========================================================
 def get_ai_market_comment(is_morning):
 
@@ -328,16 +393,16 @@ def get_ai_market_comment(is_morning):
 
         return (
             "💡 [AI 시황 코멘트]\n"
-            "• 미국 기술주 중심 상승세 지속 여부 주목\n"
-            "• 반도체 및 AI 관련주 변동성 확대 가능성\n"
-            "• 금리 민감주 중심 수급 변화 체크 필요\n"
+            "• 미국 기술주 중심 변동성 확대 가능성\n"
+            "• CPI/FOMC 관련 발언 체크 필요\n"
+            "• 반도체 및 AI 테마 수급 지속 여부 주목\n"
         )
 
     else:
 
         return (
             "💡 [AI 시황 코멘트]\n"
-            "• 외국인 수급과 환율 방향성 중요 구간\n"
+            "• 외국인 수급 방향성과 환율 흐름 중요\n"
             "• 반도체 중심 코스피 변동성 확대 가능성\n"
             "• 미국 선물지수 흐름 체크 필요\n"
         )
@@ -356,7 +421,7 @@ def get_portfolio_summary():
     result = "💼 [포트폴리오 현황]\n"
 
     result += (
-        f"💱 환율: "
+        f"💱 적용 환율: "
         f"1달러 = {usdkrw:,.0f}원\n\n"
     )
 
@@ -371,9 +436,9 @@ def get_portfolio_summary():
 
         curr = data['Close'].iloc[-1]
 
-        is_us = not ticker.endswith('.KS')
+        is_us_stock = not ticker.endswith('.KS')
 
-        if is_us:
+        if is_us_stock:
 
             buy_price_krw = buy_price * usdkrw
             curr_krw = curr * usdkrw
@@ -405,6 +470,7 @@ def get_portfolio_summary():
         result += (
             f"• {name}\n"
             f"현재가: {current_price}\n"
+            f"평가금액: {value:,.0f}원\n"
             f"수익률: {rate:+.2f}%\n"
             f"평가손익: {profit:+,.0f}원\n\n"
         )
@@ -417,6 +483,8 @@ def get_portfolio_summary():
 
     result += (
         "━━━━━━━━━━━━━━\n"
+        f"총 투자금: {total_invest:,.0f}원\n"
+        f"총 평가금액: {total_value:,.0f}원\n"
         f"총 평가손익: {total_profit:+,.0f}원\n"
         f"총 수익률: {total_rate:+.2f}%\n"
     )
@@ -429,43 +497,49 @@ def get_portfolio_summary():
 # =========================================================
 def get_kr_schedule():
 
-    today = (
-        datetime.utcnow() + timedelta(hours=9)
-    ).date()
+    feeds = [
+
+        'https://news.google.com/rss/search?q=한국은행+금통위&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=한국+수출입동향&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=코스피+일정&hl=ko&gl=KR&ceid=KR:ko'
+    ]
 
     result = (
         "🇰🇷 [국내 주요 일정]\n"
         "━━━━━━━━━━━━━━\n"
     )
 
-    schedules = [
+    items = []
 
-        (
-            today.strftime('%m/%d'),
-            "08:00",
-            "한국 수출입 동향 발표"
-        ),
+    for url in feeds:
 
-        (
-            (today + timedelta(days=1)).strftime('%m/%d'),
-            "10:00",
-            "한국은행 금통위"
-        ),
+        try:
 
-        (
-            (today + timedelta(days=2)).strftime('%m/%d'),
-            "장마감",
-            "코스피 변동성 체크"
-        )
+            feed = feedparser.parse(url)
 
-    ]
+            for entry in feed.entries[:1]:
 
-    for d, t, c in schedules:
+                items.append(
+                    (entry.title, entry.link)
+                )
 
-        result += (
-            f"📅 {d} {t}\n"
-            f"• {c}\n\n"
-        )
+        except:
+            continue
+
+    seen = set()
+
+    for title, link in items:
+
+        if title not in seen:
+
+            seen.add(title)
+
+            result += (
+                f"• {title[:80]}\n"
+                f"🔗 {link}\n\n"
+            )
 
     return result
 
@@ -475,43 +549,49 @@ def get_kr_schedule():
 # =========================================================
 def get_global_schedule():
 
-    today = (
-        datetime.utcnow() + timedelta(hours=9)
-    ).date()
+    feeds = [
+
+        'https://news.google.com/rss/search?q=미국+CPI+발표&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=FOMC+회의&hl=ko&gl=KR&ceid=KR:ko',
+
+        'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko'
+    ]
 
     result = (
         "🌎 [해외 주요 일정]\n"
         "━━━━━━━━━━━━━━\n"
     )
 
-    schedules = [
+    items = []
 
-        (
-            today.strftime('%m/%d'),
-            "21:30",
-            "미국 CPI 발표"
-        ),
+    for url in feeds:
 
-        (
-            (today + timedelta(days=1)).strftime('%m/%d'),
-            "03:00",
-            "FOMC 의사록 공개"
-        ),
+        try:
 
-        (
-            (today + timedelta(days=2)).strftime('%m/%d'),
-            "23:00",
-            "연준 위원 연설"
-        )
+            feed = feedparser.parse(url)
 
-    ]
+            for entry in feed.entries[:1]:
 
-    for d, t, c in schedules:
+                items.append(
+                    (entry.title, entry.link)
+                )
 
-        result += (
-            f"📅 {d} {t}\n"
-            f"• {c}\n\n"
-        )
+        except:
+            continue
+
+    seen = set()
+
+    for title, link in items:
+
+        if title not in seen:
+
+            seen.add(title)
+
+            result += (
+                f"• {title[:80]}\n"
+                f"🔗 {link}\n\n"
+            )
 
     return result
 
@@ -542,7 +622,7 @@ def get_market_report():
         f"{'═'*35}\n\n"
     )
 
-    # 주요지수
+    # 주요 지수
     result += "📊 [주요 지수]\n"
 
     if is_morning:
@@ -573,8 +653,10 @@ def get_market_report():
                 ((curr - prev) / prev) * 100
             )
 
+            emoji = "🔺" if change > 0 else "🔻"
+
             result += (
-                f"• {name}: "
+                f"{emoji} {name}: "
                 f"{curr:,.2f} "
                 f"({change:+.2f}%)\n"
             )
@@ -601,7 +683,7 @@ def get_market_report():
     result += get_special_events()
     result += "\n"
 
-    # 실적일정
+    # 실적 일정
     result += get_earnings_schedule()
     result += "\n"
 
@@ -621,7 +703,9 @@ def get_market_report():
 def send_telegram(text):
 
     if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("텔레그램 설정 오류")
+
+        print("텔레그램 TOKEN 또는 CHAT_ID 오류")
+
         return
 
     max_len = 3500
@@ -649,7 +733,7 @@ def send_telegram(text):
 
         except Exception as e:
 
-            print(e)
+            print(f"텔레그램 전송 실패: {e}")
 
 
 # =========================================================
@@ -666,7 +750,7 @@ if __name__ == "__main__":
     print("프로그램 시작")
     print(f"현재 시간: {hour}시")
 
-    # 오전
+    # 오전 8시 해외증시 브리핑 + 국내 일정
     if 7 <= hour < 11:
 
         report = get_market_report()
@@ -677,7 +761,7 @@ if __name__ == "__main__":
             get_kr_schedule()
         )
 
-    # 오후
+    # 오후 6시 국내증시 브리핑 + 해외 일정
     elif 17 <= hour < 23:
 
         report = get_market_report()
@@ -690,4 +774,4 @@ if __name__ == "__main__":
 
     else:
 
-        print("발송 시간 아님")
+        print("현재는 발송 시간이 아닙니다.")
