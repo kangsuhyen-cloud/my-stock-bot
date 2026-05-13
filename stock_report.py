@@ -1,24 +1,19 @@
-import yfinance as yf
 import requests
 import os
-from datetime import datetime
 
-# 깃허브 설정값에서 정보를 가져옵니다
+# 깃허브 세팅에서 가져오는 부분
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 CHAT_ID = os.environ['CHAT_ID']
 
-def get_market_report():
-    now_hour = (datetime.now().hour + 9) % 24 # 한국 시간 기준 보정
-    report = ""
-    # (여기에 이전에 짜드린 국내/해외 리포트 생성 로직이 들어갑니다)
-    # ... 중략 (이전 답변의 상세 로직을 그대로 사용하세요) ...
-    return report
-
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    params = {'chat_id': CHAT_ID, 'text': text, 'parse_mode': 'Markdown'}
-    requests.post(url, json=params)
+    payload = {'chat_id': CHAT_ID, 'text': text}
+    # 실제로 전송을 시도하고 결과를 출력합니다
+    response = requests.post(url, json=payload)
+    print(f"전송 결과: {response.status_code}")
+    print(f"응답 내용: {response.text}")
 
 if __name__ == "__main__":
-    report_content = get_market_report()
-    send_telegram(report_content)
+    # 시간 조건 없이 '무조건' 메시지를 보냅니다
+    test_message = "✅ 깃허브 액션 연결 성공! 이제 시간만 맞추면 됩니다."
+    send_telegram(test_message)
