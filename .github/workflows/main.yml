@@ -1,24 +1,41 @@
-name: Daily Stock Report
+```yaml
+name: Stock Report
 
 on:
   schedule:
-    - cron: '0 23 * * *' # 한국 시간 오전 8시 (UTC 23:00)
-    - cron: '9 9 * * *'  # 한국 시간 오후 6시 9분 (UTC 09:09)
-  workflow_dispatch: # 수동으로 실행해보고 싶을 때 쓰는 버튼 생성
+
+    # 한국 오전 8시
+    # UTC 기준 전날 23시
+    - cron: '0 23 * * *'
+
+    # 한국 오후 6시
+    # UTC 기준 09시
+    - cron: '0 9 * * *'
+
+  workflow_dispatch:
 
 jobs:
-  build:
+  run-report:
+
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-      - name: Install dependencies
-        run: pip install yfinance requests feedparser beautifulsoup4
-      - name: Run script
+          python-version: '3.11'
+
+      - name: Install Packages
+        run: |
+          pip install yfinance requests feedparser beautifulsoup4
+
+      - name: Run Python
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python stock_report.py
+        run: python main.py
+```
