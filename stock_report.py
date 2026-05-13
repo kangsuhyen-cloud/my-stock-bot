@@ -1,5 +1,5 @@
 # =========================================================
-# 필요한 패키지
+# 설치 필요 패키지
 # pip install yfinance requests feedparser beautifulsoup4
 # =========================================================
 
@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 
 # =========================================================
 # 텔레그램 설정
+# GitHub Secrets 등록 필요
+# TELEGRAM_TOKEN
+# CHAT_ID
 # =========================================================
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
@@ -27,7 +30,7 @@ MY_PORTFOLIO = {
 }
 
 # =========================================================
-# 해외 대형주
+# 미국 대형주
 # =========================================================
 US_LARGE_CAPS = [
     'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
@@ -51,7 +54,7 @@ KR_LARGE_CAPS = [
 ]
 
 # =========================================================
-# 안전한 데이터 조회
+# 안전 조회
 # =========================================================
 def safe_history(ticker, period='2d'):
 
@@ -66,7 +69,7 @@ def safe_history(ticker, period='2d'):
 
     except Exception as e:
 
-        print(f"{ticker} 조회 실패: {e}")
+        print(f"{ticker} 오류: {e}")
 
         return None
 
@@ -90,19 +93,66 @@ def get_usdkrw():
 
 
 # =========================================================
-# 링크 축약
+# HTML 특수문자 처리
 # =========================================================
-def shorten_link(link):
+def escape_html(text):
 
-    try:
+    text = text.replace("&", "&amp;")
+    text = text.replace("<", "&lt;")
+    text = text.replace(">", "&gt;")
 
-        if "news.google.com" in link:
-            return "Google 뉴스 바로가기"
+    return text
 
-        return link[:50]
 
-    except:
-        return "링크 확인"
+# =========================================================
+# 뉴스 링크형 출력
+# =========================================================
+def build_news_section(title, feeds, max_items=5):
+
+    result = f"{title}\n"
+
+    news_items = []
+
+    for url in feeds:
+
+        try:
+
+            feed = feedparser.parse(url)
+
+            for entry in feed.entries[:2]:
+
+                news_items.append(
+                    (entry.title, entry.link)
+                )
+
+        except:
+            continue
+
+    seen = set()
+
+    count = 0
+
+    for news_title, link in news_items:
+
+        if news_title in seen:
+            continue
+
+        seen.add(news_title)
+
+        safe_title = escape_html(news_title[:70])
+
+        result += (
+            f'• <a href="{link}">{safe_title}</a>\n'
+        )
+
+        count += 1
+
+        if count >= max_items:
+            break
+
+    result += "\n"
+
+    return result
 
 
 # =========================================================
@@ -137,11 +187,13 @@ def get_macro_indicators():
                 f"({change:+.2f}%)\n"
             )
 
+    result += "\n"
+
     return result
 
 
 # =========================================================
-# 해외 상승/하락
+# 미국 상승하락
 # =========================================================
 def get_top_movers_us():
 
@@ -185,11 +237,13 @@ def get_top_movers_us():
             f"(${c:,.2f})\n"
         )
 
+    result += "\n"
+
     return result
 
 
 # =========================================================
-# 국내 상승/하락
+# 국내 상승하락
 # =========================================================
 def get_top_movers_kr():
 
@@ -233,116 +287,7 @@ def get_top_movers_kr():
             f"({c:,.0f}원)\n"
         )
 
-    return result
-
-
-# =========================================================
-# 뉴스 공통
-# =========================================================
-def get_news(is_morning):
-
-    if is_morning:
-
-        feeds = [
-            'https://news.google.com/rss/search?q=미국증시&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=엔비디아&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=연준금리&hl=ko&gl=KR&ceid=KR:ko'
-        ]
-
-    else:
-
-        feeds = [
-            'https://news.google.com/rss/search?q=코스피&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko',
-            'https://news.google.com/rss/search?q=2차전지&hl=ko&gl=KR&ceid=KR:ko'
-        ]
-
-    result = "📰 [주요 뉴스]\n"
-
-    news_items = []
-
-    for url in feeds:
-
-        try:
-
-            feed = feedparser.parse(url)
-
-            for entry in feed.entries[:1]:
-
-                news_items.append(
-                    (entry.title, entry.link)
-                )
-
-        except:
-            continue
-
-    seen = set()
-
-    for title, link in news_items:
-
-        if title not in seen:
-
-            seen.add(title)
-
-            short = shorten_link(link)
-
-            result += (
-                f"• {title[:65]}\n"
-                f"🔗 {short}\n\n"
-            )
-
-    return result
-
-
-# =========================================================
-# 특수 이벤트
-# =========================================================
-def get_special_events():
-
-    feeds = [
-
-        'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
-
-        'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
-
-        'https://news.google.com/rss/search?q=트럼프중국방문&hl=ko&gl=KR&ceid=KR:ko',
-
-        'https://news.google.com/rss/search?q=엔비디아실적발표&hl=ko&gl=KR&ceid=KR:ko'
-    ]
-
-    result = "🌎 [글로벌 특수 이벤트]\n"
-
-    items = []
-
-    for url in feeds:
-
-        try:
-
-            feed = feedparser.parse(url)
-
-            for entry in feed.entries[:1]:
-
-                items.append(
-                    (entry.title, entry.link)
-                )
-
-        except:
-            continue
-
-    seen = set()
-
-    for title, link in items:
-
-        if title not in seen:
-
-            seen.add(title)
-
-            short = shorten_link(link)
-
-            result += (
-                f"• {title[:65]}\n"
-                f"🔗 {short}\n\n"
-            )
+    result += "\n"
 
     return result
 
@@ -360,8 +305,8 @@ def get_portfolio_summary():
     result = "💼 [포트폴리오 현황]\n"
 
     result += (
-        f"💱 환율: 1달러 = "
-        f"{usdkrw:,.0f}원\n\n"
+        f"💱 환율: "
+        f"1달러 = {usdkrw:,.0f}원\n\n"
     )
 
     for ticker, info in MY_PORTFOLIO.items():
@@ -463,7 +408,7 @@ def get_market_report():
         f"{'═'*35}\n\n"
     )
 
-    # 주요 지수
+    # 주요지수
     result += "📊 [주요 지수]\n"
 
     if is_morning:
@@ -504,25 +449,83 @@ def get_market_report():
 
     result += "\n"
 
+    # 거시지표
     result += get_macro_indicators()
-    result += "\n"
 
+    # 상승하락
     if is_morning:
         result += get_top_movers_us()
     else:
         result += get_top_movers_kr()
 
-    result += "\n"
+    # 주요뉴스
+    if is_morning:
 
-    result += get_news(is_morning)
-    result += "\n"
+        result += build_news_section(
+            "📰 [미국 주요 뉴스]",
+            [
+                'https://news.google.com/rss/search?q=미국증시&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=엔비디아&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=연준금리&hl=ko&gl=KR&ceid=KR:ko'
+            ]
+        )
 
-    result += get_special_events()
-    result += "\n"
+    else:
 
+        result += build_news_section(
+            "📰 [국내 주요 뉴스]",
+            [
+                'https://news.google.com/rss/search?q=코스피&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko',
+                'https://news.google.com/rss/search?q=2차전지&hl=ko&gl=KR&ceid=KR:ko'
+            ]
+        )
+
+    # 글로벌 특수 이벤트
+    result += build_news_section(
+        "🌎 [글로벌 특수 이벤트]",
+        [
+            'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=트럼프중국방문&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=엔비디아실적발표&hl=ko&gl=KR&ceid=KR:ko'
+        ]
+    )
+
+    # 포트폴리오
     result += get_portfolio_summary()
 
     return result
+
+
+# =========================================================
+# 국내 일정
+# =========================================================
+def get_kr_schedule():
+
+    return build_news_section(
+        "🇰🇷 [국내 주요 일정]",
+        [
+            'https://news.google.com/rss/search?q=한국은행+금통위&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=한국+수출입동향&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=코스피+일정&hl=ko&gl=KR&ceid=KR:ko'
+        ]
+    )
+
+
+# =========================================================
+# 해외 일정
+# =========================================================
+def get_global_schedule():
+
+    return build_news_section(
+        "🌎 [해외 주요 일정]",
+        [
+            'https://news.google.com/rss/search?q=미국+CPI발표&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=FOMC회의&hl=ko&gl=KR&ceid=KR:ko',
+            'https://news.google.com/rss/search?q=미국+금리발표&hl=ko&gl=KR&ceid=KR:ko'
+        ]
+    )
 
 
 # =========================================================
@@ -532,7 +535,7 @@ def send_telegram(text):
 
     if not TELEGRAM_TOKEN or not CHAT_ID:
 
-        print("텔레그램 TOKEN 또는 CHAT_ID 오류")
+        print("텔레그램 TOKEN 또는 CHAT_ID 없음")
 
         return
 
@@ -551,7 +554,9 @@ def send_telegram(text):
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                 json={
                     'chat_id': CHAT_ID,
-                    'text': msg
+                    'text': msg,
+                    'parse_mode': 'HTML',
+                    'disable_web_page_preview': True
                 },
                 timeout=20
             )
@@ -577,13 +582,27 @@ if __name__ == "__main__":
     print("프로그램 시작")
     print(f"현재 시간: {hour}시")
 
-    if (7 <= hour < 11) or (17 <= hour < 23):
+    # 오전 8시
+    if 7 <= hour < 11:
 
         report = get_market_report()
 
-        print(report)
+        send_telegram(report)
+
+        send_telegram(
+            get_kr_schedule()
+        )
+
+    # 오후 6시
+    elif 17 <= hour < 23:
+
+        report = get_market_report()
 
         send_telegram(report)
+
+        send_telegram(
+            get_global_schedule()
+        )
 
     else:
 
