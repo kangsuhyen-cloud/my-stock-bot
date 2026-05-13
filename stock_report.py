@@ -45,12 +45,13 @@ KR_LARGE_CAPS = [
     ('035720.KS', '카카오')
 ]
 
-
 # =========================
-# 안전한 데이터 조회 함수
+# 안전한 데이터 조회
 # =========================
 def safe_history(ticker, period='2d'):
+
     try:
+
         data = yf.Ticker(ticker).history(period=period)
 
         if data.empty:
@@ -60,8 +61,34 @@ def safe_history(ticker, period='2d'):
         return data
 
     except Exception as e:
+
         print(f"[조회 실패] {ticker}: {e}")
         return None
+
+
+# =========================
+# USD/KRW 환율 조회
+# =========================
+def get_usdkrw():
+
+    try:
+
+        data = yf.Ticker("KRW=X").history(period='1d')
+
+        if data.empty:
+            return 1350
+
+        rate = data['Close'].iloc[-1]
+
+        print(f"현재 환율: {rate:,.2f}")
+
+        return rate
+
+    except Exception as e:
+
+        print(f"환율 조회 실패: {e}")
+
+        return 1350
 
 
 # =========================
@@ -162,12 +189,14 @@ def get_global_news():
     for url in feeds:
 
         try:
+
             feed = feedparser.parse(url)
 
             for entry in feed.entries[:2]:
                 news_items.append((entry.title, entry.link))
 
         except Exception as e:
+
             print(f"뉴스 오류: {e}")
 
     seen = set()
@@ -210,12 +239,14 @@ def get_kr_market_news():
     for url in feeds:
 
         try:
+
             feed = feedparser.parse(url)
 
             for entry in feed.entries[:2]:
                 news_items.append((entry.title, entry.link))
 
         except Exception as e:
+
             print(f"뉴스 오류: {e}")
 
     seen = set()
@@ -247,10 +278,13 @@ def get_kr_market_news():
 # =========================
 def get_portfolio_summary():
 
+    usdkrw = get_usdkrw()
+
     total_invest = 0
     total_value = 0
 
     result = "\n💼 [포트폴리오 현황]\n"
+    result += f"💱 적용 환율: 1달러 = {usdkrw:,.0f}원\n\n"
 
     for ticker, info in MY_PORTFOLIO.items():
 
@@ -263,8 +297,24 @@ def get_portfolio_summary():
 
         curr = data['Close'].iloc[-1]
 
-        invest = buy_price * qty
-        value = curr * qty
+        is_us_stock = not ticker.endswith('.KS')
+
+        if is_us_stock:
+
+            buy_price_krw = buy_price * usdkrw
+            curr_krw = curr * usdkrw
+
+            invest = buy_price_krw * qty
+            value = curr_krw * qty
+
+            display_curr = f"${curr:,.2f} / {curr_krw:,.0f}원"
+
+        else:
+
+            invest = buy_price * qty
+            value = curr * qty
+
+            display_curr = f"{curr:,.0f}원"
 
         profit = value - invest
         rate = (profit / invest) * 100
@@ -274,9 +324,10 @@ def get_portfolio_summary():
 
         result += (
             f"• {name}\n"
-            f"  현재가: {curr:,.2f}\n"
+            f"  현재가: {display_curr}\n"
+            f"  평가금액: {value:,.0f}원\n"
             f"  수익률: {rate:+.2f}%\n"
-            f"  평가손익: {profit:+,.0f}\n\n"
+            f"  평가손익: {profit:+,.0f}원\n\n"
         )
 
     if total_invest > 0:
@@ -286,9 +337,79 @@ def get_portfolio_summary():
 
         result += (
             "━━━━━━━━━━━━━━\n"
-            f"총 투자금: {total_invest:,.0f}\n"
-            f"총 평가금: {total_value:,.0f}\n"
+            f"총 투자금: {total_invest:,.0f}원\n"
+            f"총 평가금: {total_value:,.0f}원\n"
+            f"총 평가손익: {total_profit:+,.0f}원\n"
             f"총 수익률: {total_rate:+.2f}%\n"
+        )
+
+    return result
+
+
+# =========================
+# 국내 주요 일정
+# =========================
+def get_kr_special_schedule():
+
+    now_kst = datetime.utcnow() + timedelta(hours=9)
+
+    today = now_kst.date()
+
+    result = (
+        "🇰🇷 [국내 주요 일정 브리핑]\n"
+        "━━━━━━━━━━━━━━\n"
+    )
+
+    schedules = [
+
+        (today.strftime('%m/%d'), "08:00", "한국 수출입 동향 발표"),
+        ((today + timedelta(days=1)).strftime('%m/%d'), "09:00", "외국인 수급 동향 집중 체크"),
+        ((today + timedelta(days=2)).strftime('%m/%d'), "10:00", "한국은행 금통위 금리 결정"),
+        ((today + timedelta(days=3)).strftime('%m/%d'), "09:00", "코스피 변동성 확대 가능성"),
+        ((today + timedelta(days=5)).strftime('%m/%d'), "장마감", "코스피200 리밸런싱 예정")
+
+    ]
+
+    for date, time_str, content in schedules:
+
+        result += (
+            f"📅 {date} {time_str}\n"
+            f"• {content}\n\n"
+        )
+
+    return result
+
+
+# =========================
+# 해외 주요 일정
+# =========================
+def get_global_special_schedule():
+
+    now_kst = datetime.utcnow() + timedelta(hours=9)
+
+    today = now_kst.date()
+
+    result = (
+        "🌎 [글로벌 주요 일정 브리핑]\n"
+        "━━━━━━━━━━━━━━\n"
+    )
+
+    schedules = [
+
+        (today.strftime('%m/%d'), "21:30", "미국 CPI 소비자물가지수 발표"),
+        ((today + timedelta(days=1)).strftime('%m/%d'), "03:00", "FOMC 의사록 공개"),
+        ((today + timedelta(days=2)).strftime('%m/%d'), "22:00", "연준 위원 연설 예정"),
+        ((today + timedelta(days=3)).strftime('%m/%d'), "23:00", "미시간대 소비자심리지수 발표"),
+        ((today + timedelta(days=4)).strftime('%m/%d'), "미정", "미국-중국 정상회담 예정"),
+        ((today + timedelta(days=5)).strftime('%m/%d'), "22:30", "미국 실업수당 청구건수 발표")
+
+    ]
+
+    for date, time_str, content in schedules:
+
+        result += (
+            f"📅 {date} {time_str}\n"
+            f"• {content}\n\n"
         )
 
     return result
@@ -314,7 +435,6 @@ def get_market_reports():
         f"{'═' * 30}\n\n"
     )
 
-    # 주요지수
     report += "📊 [주요 지수]\n"
 
     symbols = (
@@ -338,7 +458,6 @@ def get_market_reports():
 
     report += "\n"
 
-    # 상승하락 TOP
     if is_morning:
         report += get_top_movers_us()
     else:
@@ -346,7 +465,6 @@ def get_market_reports():
 
     report += "\n"
 
-    # 뉴스
     if is_morning:
         report += get_global_news()
     else:
@@ -354,7 +472,6 @@ def get_market_reports():
 
     report += "\n"
 
-    # 포트폴리오
     report += get_portfolio_summary()
 
     return report
@@ -397,6 +514,7 @@ def send_telegram(text):
             print(response.text)
 
         except Exception as e:
+
             print(f"텔레그램 전송 실패: {e}")
 
 
@@ -416,17 +534,31 @@ if __name__ == "__main__":
 
     print(f"현재 시간: {hour}시")
 
-    if (7 <= hour < 11) or (17 <= hour < 23):
+    # 오전 해외장 리포트
+    if 7 <= hour < 11:
 
-        print("리포트 생성 시작")
+        print("해외 리포트 생성")
 
         report = get_market_reports()
 
-        print(report)
+        send_telegram(report)
 
-        print("텔레그램 전송 시작")
+        print("국내 일정 브리핑 전송")
+
+        send_telegram(get_kr_special_schedule())
+
+    # 오후 국내장 리포트
+    elif 17 <= hour < 23:
+
+        print("국내 리포트 생성")
+
+        report = get_market_reports()
 
         send_telegram(report)
+
+        print("글로벌 일정 브리핑 전송")
+
+        send_telegram(get_global_special_schedule())
 
     else:
 
