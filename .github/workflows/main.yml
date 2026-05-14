@@ -2,36 +2,20 @@
 name: Stock Report
 
 on:
-  schedule:
-
-    # 한국 오전 8시
-    # UTC 기준 전날 23시
-    - cron: '0 23 * * *'
-
-    # 한국 오후 6시
-    # UTC 기준 09시
-    - cron: '0 9 * * *'
-
   workflow_dispatch:
 
 jobs:
   run-report:
-
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Packages
-        run: |
-          pip install yfinance requests feedparser beautifulsoup4
+      - run: pip install yfinance requests feedparser beautifulsoup4
 
       - name: Run Python
         env:
