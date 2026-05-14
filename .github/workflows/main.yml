@@ -1,25 +1,29 @@
-```yaml
-name: Stock Report
+name: my-stock-bot
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 23 * * *'   # KST 08:00 (UTC 23:00 전날)
+    - cron: '0 9 * * *'    # KST 18:00 (UTC 09:00)
+  workflow_dispatch:         # 수동 실행 버튼 추가
 
 jobs:
-  run-report:
+  run-briefing:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - run: pip install yfinance requests feedparser beautifulsoup4
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - name: Run Python
+      - name: Run script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python stock_report.py
-```
+        run: python main.py
