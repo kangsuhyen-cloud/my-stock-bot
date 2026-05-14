@@ -1,4 +1,3 @@
-```python
 import yfinance as yf
 import requests
 import os
@@ -450,4 +449,3 @@ if __name__ == "__main__":
     else:
 
         print("발송 시간이 아닙니다.")
-```
